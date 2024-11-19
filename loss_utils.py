@@ -151,17 +151,24 @@ def rotation_from_vector(approach_vector, closing_vector):
     return R
 
 
-def decode_pred(point,pred_gp, pred_pose,pred_joint):
+def decode_pred(point, pred_gp, pred_pose, pred_joint):
+    """
+    Args:
+        point: [40000, 3]
+        pred_gp: [40000, 2]
+        pred_pose: [40000, 20]
+        pred_joint: [40000, 64]
+    """
     # print(pred_gp.size())
-    out_gp = torch.argmax(pred_gp,dim = 1).bool()
-    score = F.softmax(pred_gp,dim = 1)[:,1]
+    out_gp = torch.argmax(pred_gp, dim=1).bool()  # 这里是为了得到5种抓取方式中的max索引
+    score = F.softmax(pred_gp, dim=1)[:, 1]
     score = score[out_gp]
     # print(out_gp)
     # print(torch.sum(out_gp==0))
     # print(torch.sum(out_gp==1))
     if torch.sum(out_gp) <= 0:
         return
-    pred_pose = pred_pose[out_gp]
+    pred_pose = pred_pose[out_gp]  # pred_pose: [1771, 64]
     joint = pred_joint[out_gp]
 
     start_offset = 0
@@ -208,9 +215,6 @@ def decode_pred(point,pred_gp, pred_pose,pred_joint):
     approach = R[:,:3,2] # the last column
     gp = point[out_gp]
     # print(approach.shape,gp.shape,depth.shape)
-    pos = gp + (approach *(depth[:,np.newaxis]+20.)/100.)
-
-    return out_gp,pos,R,joint,score
-
-
-
+    pos = gp + (approach * (depth[:, np.newaxis] + 20.) / 100.)
+    # 抓取可行性out_gp、抓取位置pos、旋转矩阵R、关节状态joint,以及抓取评分score
+    return out_gp, pos, R, joint, score

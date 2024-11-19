@@ -13,7 +13,7 @@ import copy
 import yaml
 import glob
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.dirname(os.path.realpath(__file__))  # '/home/kb/MyProjects/ffh_open_source/hgc_net/utils'
 with open(os.path.join(dir_path, '../config/base_config.yaml'), 'r') as f:
     cfg = yaml.load(f,Loader=yaml.FullLoader)
 
@@ -63,6 +63,9 @@ def load_scene_pointcloud(img_id, use_base_coordinate=True,split = 'train'):
         points,sem = pc_utils.depth_to_pointcloud(depth_file,intrinsics)
     else:
         points,sem = pc_utils.depth_to_pointcloud(depth_file,intrinsics,mask_files)
+        # from matplotlib import pyplot as plt
+        # plt.imshow(sem.reshape([480,640]), cmap='jet')
+        # plt.show()
     if use_base_coordinate:
         # load camera to base pose
         with open(os.path.join(file_path,'scene_camera.json')) as f:
@@ -71,6 +74,12 @@ def load_scene_pointcloud(img_id, use_base_coordinate=True,split = 'train'):
         t_w2c = np.asarray(camera_config['cam_t_w2c'])*0.001
         c_w = common_util.inverse_transform_matrix(R_w2c,t_w2c)
         points = common_util.transform_points(points,c_w)
+    # #     ----------
+    #     import open3d as o3d
+    #     pcd = o3d.geometry.PointCloud()
+    #     pcd.points = o3d.utility.Vector3dVector(points)
+    #     o3d.visualization.draw_geometries([pcd])
+    # # ----------------------
     return points,sem
 
 def load_scene(img_id,use_base_coordinate = True,use_simplified_model = False,split = 'train'):

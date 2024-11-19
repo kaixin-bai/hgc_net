@@ -77,8 +77,49 @@ def vis_groundtruth(dataloader):
 def vis_model(model, img_idx=0):
     model = model.eval()
     taxonomy = ['Parallel_Extension', 'Pen_Pinch', 'Palmar_Pinch', 'Precision_Sphere', 'Large_Wrap']
-    point, sem = scene_utils.load_scene_pointcloud(img_idx, use_base_coordinate=cfg['use_base_coordinate'],
-                                                   split='test')
+    # point [307200, 3] ; sem [307200,]的int
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # point, sem = scene_utils.load_scene_pointcloud(img_idx, use_base_coordinate=cfg['use_base_coordinate'],
+    #                                                split='test')
+    # ------------------------------------------------------------------------------------------------------------------
+    data = np.load('../debug_scene01_data_for_hgcnet/debug_scene01.npz', allow_pickle=True)
+    point = data['pcd']
+    sem = data['seg'][:,0]
+    # 获取 num_points 的目标值
+    num_points = cfg['dataset']['num_points']
+    # 获取当前点的数量 n
+    n = point.shape[0]
+    if n < num_points:
+        # 计算需要补全的数量
+        num_to_pad = num_points - n
+        # 用 [0, 0, 0] 补全 point
+        padding_points = np.zeros((num_to_pad, 3))
+        point_padded = np.vstack((point, padding_points))
+        # 用 0 补全 sem
+        padding_sem = np.zeros(num_to_pad, dtype=sem.dtype)
+        sem_padded = np.concatenate((sem, padding_sem))
+    else:
+        # 如果不需要补全，则原样返回
+        point_padded = point
+        sem_padded = sem
+    point, sem = point_padded, sem_padded
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # import open3d as o3d
+    # pcd = o3d.io.read_point_cloud("/home/kb/Downloads/testpcd.ply")
+    # point = np.array(pcd.points)
+    # sem = np.ones([point.shape[0]])
+
+    # ==================================================================================================================
+    # import open3d as o3d
+    # cs = o3d.geometry.TriangleMesh.create_coordinate_frame(1.0)
+    # pcd = o3d.geometry.PointCloud()
+    # pcd.points = o3d.utility.Vector3dVector(point)
+    # pcd.estimate_normals()
+    # o3d.visualization.draw_geometries([pcd, cs])
+    # ==================================================================================================================
+
     center = np.mean(point, axis=0)
     norm_point = point - center
     crop_point, crop_index = pc_utils.crop_point(point)
@@ -100,8 +141,8 @@ def vis_model(model, img_idx=0):
 
     bat_pred_graspable, bat_pred_pose, bat_pred_joint = \
         model(point, norm_point.transpose(1, 2))
-
-    point, sem, gp, pose, joint =\
+    # gp的意思是graspable，即是否可抓
+    point, sem, gp, pose, joint = \
         point[0].cpu(), bat_sem, bat_pred_graspable[0].cpu(), bat_pred_pose[0].cpu(), bat_pred_joint[0].cpu()
 
     hand_meshes = []
