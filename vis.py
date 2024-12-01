@@ -76,34 +76,39 @@ def vis_groundtruth(dataloader):
 
 def vis_model(model, img_idx=0):
     model = model.eval()
+    # Parallel_Extension：平行伸展
+    # Pen_Pinch：笔式捏握
+    # Palmar_Pinch：掌部捏握
+    # Precision_Sphere：精确球握
+    # Large_Wrap：大范围包握
     taxonomy = ['Parallel_Extension', 'Pen_Pinch', 'Palmar_Pinch', 'Precision_Sphere', 'Large_Wrap']
     # point [307200, 3] ; sem [307200,]的int
 
     # ------------------------------------------------------------------------------------------------------------------
-    # point, sem = scene_utils.load_scene_pointcloud(img_idx, use_base_coordinate=cfg['use_base_coordinate'],
-    #                                                split='test')
+    point, sem = scene_utils.load_scene_pointcloud(img_idx, use_base_coordinate=cfg['use_base_coordinate'],
+                                                   split='test')
     # ------------------------------------------------------------------------------------------------------------------
-    data = np.load('../debug_scene01_data_for_hgcnet/debug_scene01.npz', allow_pickle=True)
-    point = data['pcd']
-    sem = data['seg'][:,0]
-    # 获取 num_points 的目标值
-    num_points = cfg['dataset']['num_points']
-    # 获取当前点的数量 n
-    n = point.shape[0]
-    if n < num_points:
-        # 计算需要补全的数量
-        num_to_pad = num_points - n
-        # 用 [0, 0, 0] 补全 point
-        padding_points = np.zeros((num_to_pad, 3))
-        point_padded = np.vstack((point, padding_points))
-        # 用 0 补全 sem
-        padding_sem = np.zeros(num_to_pad, dtype=sem.dtype)
-        sem_padded = np.concatenate((sem, padding_sem))
-    else:
-        # 如果不需要补全，则原样返回
-        point_padded = point
-        sem_padded = sem
-    point, sem = point_padded, sem_padded
+    # data = np.load('../debug_scene01_data_for_hgcnet/debug_scene01.npz', allow_pickle=True)
+    # point = data['pcd']
+    # sem = data['seg'][:,0]
+    # # 获取 num_points 的目标值
+    # num_points = cfg['dataset']['num_points']
+    # # 获取当前点的数量 n
+    # n = point.shape[0]
+    # if n < num_points:
+    #     # 计算需要补全的数量
+    #     num_to_pad = num_points - n
+    #     # 用 [0, 0, 0] 补全 point
+    #     padding_points = np.zeros((num_to_pad, 3))
+    #     point_padded = np.vstack((point, padding_points))
+    #     # 用 0 补全 sem
+    #     padding_sem = np.zeros(num_to_pad, dtype=sem.dtype)
+    #     sem_padded = np.concatenate((sem, padding_sem))
+    # else:
+    #     # 如果不需要补全，则原样返回
+    #     point_padded = point
+    #     sem_padded = sem
+    # point, sem = point_padded, sem_padded
 
     # ------------------------------------------------------------------------------------------------------------------
     # import open3d as o3d
@@ -119,12 +124,12 @@ def vis_model(model, img_idx=0):
     # pcd.estimate_normals()
     # o3d.visualization.draw_geometries([pcd, cs])
     # ==================================================================================================================
-
+    # 加载场景的点云，并计算中心化后的归一化点云。
     center = np.mean(point, axis=0)
     norm_point = point - center
     crop_point, crop_index = pc_utils.crop_point(point)
     choice = np.random.choice(len(crop_point), cfg['dataset']['num_points'], replace=False)
-
+    # point:[40000,3]; sem:[40000,]; norm_point:[40000,3]，都是ndarray
     point = point[crop_index][choice]
     sem = sem[crop_index][choice]
     norm_point = norm_point[crop_index][choice]
@@ -139,9 +144,13 @@ def vis_model(model, img_idx=0):
     point = torch.tensor([point]).cuda().float()
     norm_point = torch.tensor([norm_point]).cuda().float()
 
+    # !!!!!!!!!!!!!! 着重看这行 !!!!!!!!!!!!!!
+    # bat_pred_graspable:[1,40000,2,5]
+    # bat_pred_pose:     [1,40000,64,5]
+    # bat_pred_joint:    [1,40000,20,5]
     bat_pred_graspable, bat_pred_pose, bat_pred_joint = \
         model(point, norm_point.transpose(1, 2))
-    # gp的意思是graspable，即是否可抓
+    # gp的意思是graspable，即是否可抓；point:[40000,3];sem:[40000,],数值是0123这样;gp:[40000,2,5];pose:[40000,64,5];joint:[40000,20,5]
     point, sem, gp, pose, joint = \
         point[0].cpu(), bat_sem, bat_pred_graspable[0].cpu(), bat_pred_pose[0].cpu(), bat_pred_joint[0].cpu()
 
@@ -151,12 +160,13 @@ def vis_model(model, img_idx=0):
         scene = trimesh.Scene()
         scene_mesh, _, _ = scene_utils.load_scene(img_idx, split='test')
         # scene.add_geometry(scene_mesh)
-        scene = scene_utils.add_scene_cloud(scene, bat_point)
+        scene = scene_utils.add_scene_cloud(scene, bat_point)  # 加载点云
         # scene.show()
         # exit()
         tax_gp, tax_pose, tax_joint = gp[:, :, t], pose[:, :, t], joint[:, :, t]
         # print(tax_gp.shape,tax_pose.shape,tax_joint.shape)
-        if cfg['train']['use_bin_loss']:
+        if cfg['train']['use_bin_loss']:  # True
+            # point:, tax_gp, tax_pose, tax_joint
             out_gp, out_pos, out_R, out_joint, out_score = loss_utils.decode_pred(point, tax_gp, tax_pose,
                                                                                   tax_joint)
             out_pos, out_R, out_joint, out_score = out_pos.detach().cpu().numpy(), \
@@ -220,7 +230,6 @@ if __name__ == '__main__':
     #                                            batch_size = FLAGS.batchsize,
     #                                            shuffle=True,
     #                                            num_workers = FLAGS.workers)
-
     model = backbone_pointnet2().cuda()
     model = torch.nn.DataParallel(model)
     model.load_state_dict(

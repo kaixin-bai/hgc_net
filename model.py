@@ -88,14 +88,19 @@ class backbone_pointnet2(nn.Module):
         feature = F.leaky_relu(self.bn2(self.conv2(feature)),negative_slope = 0.2)
         feature = self.drop2(feature)
 
+        # num_taxonomies表示类别数量，这里是5；bat_pred={Tensor:(b,40000,86,5)}
         bat_pred = self.conv3(feature).permute(0,2,1).view(xyz.size(0),-1,self.channels,cfg['dataset']['num_taxonomies']).contiguous()    # bat_feature:[1,40000,86,5] # B,N,C,5
 
-        pred_graspable, pred_pose,pred_joint = bat_pred[:,:,:2,:],bat_pred[:,:,2:-20,:],bat_pred[:,:,-20:,:]      # pred_graspable:[1,40000,2,5], pred_pose:[1,40000,64,5], pred_joint:[1,40000,20,5]
+        pred_graspable, pred_pose, pred_joint = bat_pred[:,:,:2,:],\
+                                               bat_pred[:,:,2:-20,:],\
+                                               bat_pred[:,:,-20:,:]      # pred_graspable:[1,40000,2,5], pred_pose:[1,40000,64,5], pred_joint:[1,40000,20,5]
 
         # ==============================================================================================================
+        # 从上面shape注释中可以看到每个都是5维，这是因为我们有5中抓取方式，即40000个点中的每个点都预测了5种抓取方式的数据
+        # TODO：这里我有个疑问，如果我们的抓取只是和每个点挂钩的话，是不是会导致我们40000个点中有用的信息很少呢？如果后续改进需不需要在这里用高斯做一下数据扩展？
         # pred_graspable: 形状：[batch_size, num_points, 2, num_taxonomies]; 每个点是否可抓取的预测结果,2表示二分类的概率,
         #       num_taxonomies 表示抓取类型的数量（例如，['Parallel_Extension', 'Pen_Pinch', 'Palmar_Pinch', 'Precision_Sphere', 'Large_Wrap'] 这五种类型）,每个点对每种抓取类型都有一个可抓取的概率。
-        # pred_pose: 形状：[batch_size, num_points, channels, num_taxonomies]; 对每个点在不同抓取类型下的抓取位姿的预测, TODO：看后续这个变量是如何被解码为抓取的，即这64维是什么含义
+        # pred_pose: 形状：[batch_size, num_points, channels, num_taxonomies]; 对每个点在不同抓取类型下的抓取位姿的预测, TODO：看后续这个变量是如何被解码为抓取的，即这64维是什么含义，论文里这里是6
         #       channels 是抓取姿势的特征维度（根据 channels 的计算方式，这里是64个维度）
         # pred_joint: [batch_size, num_points, 20, num_taxonomies]; 对每个点的手指关节状态的预测
         #       20 表示手指关节的特征维度, num_taxonomies 是不同抓取类型下的预测，这意味着模型会对每种抓取类型下手指的关节状态进行预测
@@ -103,7 +108,7 @@ class backbone_pointnet2(nn.Module):
 
         # pred_graspable, pred_depth, pred_quat,pred_joint = bat_pred[:,:,:2,:],bat_pred[:,:,2,:],bat_pred[:,:,3:,:],bat_pred[:,:,7:,:]
         # pred_depth = self.sigmoid(pred_depth) *0.08 + 0.20
-        return pred_graspable, pred_pose,pred_joint
+        return pred_graspable, pred_pose, pred_joint
 
     def get_bin_loss(self,pred,data):
         gt_list = []
