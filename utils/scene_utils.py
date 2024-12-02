@@ -289,7 +289,7 @@ def decode_prediction(point, pred_hand, taxonomy, img_id, cfg,vis = True):
     return pos,quat
 
 def decode_pred_new(pos,R,joint,tax):
-    R_hand = np.load(os.path.join(dir_path,'R_hand.npy'))
+    R_hand = np.load(os.path.join(dir_path,'R_hand.npy'))  # TODO:这个是干嘛用的？
     mat = np.tile(np.eye(4),[R.shape[0],1,1])
     mat[:,:3,:3] = R
     mat[:,:3,3] = pos

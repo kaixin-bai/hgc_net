@@ -154,9 +154,26 @@ def vis_model(model, img_idx=0):
     point, sem, gp, pose, joint = \
         point[0].cpu(), bat_sem, bat_pred_graspable[0].cpu(), bat_pred_pose[0].cpu(), bat_pred_joint[0].cpu()
 
+    # 打印 point 的最大值和最小值
+    print(f"point: max={point.max()}, min={point.min()}")
+    # 打印 sem 的最大值和最小值
+    print(f"sem: max={sem.max()}, min={sem.min()}")
+    # 打印 gp 的最大值和最小值
+    print(f"gp: max={gp.max()}, min={gp.min()}")
+    # 打印 pose 的最大值和最小值
+    print(f"pose: max={pose.max()}, min={pose.min()}")
+    # 打印 joint 的最大值和最小值
+    print(f"joint: max={joint.max()}, min={joint.min()}")
+    """
+    point: max=0.49997562170028687,  min=-0.4999968111515045
+    sem:   max=10.0,                 min=0.0
+    gp:    max=14.096048355102539,   min=-13.947809219360352
+    pose:  max=15.211660385131836,   min=-28.149578094482422
+    joint: max=1.9571352005004883,   min=-0.38067761063575745
+    """
     hand_meshes = []
     for t in range(gp.size(-1)):  # for each taxonomy
-        tax = taxonomy[t]
+        tax = taxonomy[t]  # 当前抓取类型的标签名称
         scene = trimesh.Scene()
         scene_mesh, _, _ = scene_utils.load_scene(img_idx, split='test')
         # scene.add_geometry(scene_mesh)
@@ -168,7 +185,7 @@ def vis_model(model, img_idx=0):
         if cfg['train']['use_bin_loss']:  # True
             # point:, tax_gp, tax_pose, tax_joint
             out_gp, out_pos, out_R, out_joint, out_score = loss_utils.decode_pred(point, tax_gp, tax_pose,
-                                                                                  tax_joint)
+                                                                                  tax_joint) # out_gp: 抓取bool分类;out_pos: 抓取的三维位置;out_R: 抓取的旋转矩阵;out_joint: 手部关节状态;out_score: 抓取置信度分数
             out_pos, out_R, out_joint, out_score = out_pos.detach().cpu().numpy(), \
                 out_R.detach().cpu().numpy(), \
                 out_joint.detach().cpu().numpy(), \
